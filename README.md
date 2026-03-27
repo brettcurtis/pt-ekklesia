@@ -18,6 +18,13 @@ The continuous delivery workflows are implemented using GitHub Actions, ensuring
 Links to documentation and other resources required to develop and iterate in this repository successfully.
 
 - [backstage](https://backstage.io/docs)
+- [cloud dns](https://cloud.google.com/dns/docs)
+- [cloud sql](https://cloud.google.com/sql/docs)
+- [datadog synthetics](https://docs.datadoghq.com/synthetics/)
+- [google cloud platform iam](https://cloud.google.com/iam/docs/overview)
+- [google cloud platform projects](https://cloud.google.com/resource-manager/docs/creating-managing-projects)
+- [helm](https://helm.sh/docs/)
+- [kubernetes](https://kubernetes.io/docs/home/)
 
 ### 🔍 Tests
 
