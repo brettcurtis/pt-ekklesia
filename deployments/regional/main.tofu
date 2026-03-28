@@ -7,10 +7,10 @@ data "terraform_remote_state" "main" {
   config = {
     bucket             = var.remote_bucket
     kms_encryption_key = var.state_kms_encryption_key
-    prefix             = module.helpers.repository
+    prefix             = module.core_helpers.repository
   }
 
-  workspace = "main-${module.helpers.environment}"
+  workspace = "main-${module.core_helpers.environment}"
 }
 
 # Google Cloud SQL Module (osinfra.io)
@@ -22,11 +22,11 @@ module "cloud_sql" {
   deletion_protection            = false
   host_project_id                = var.networking_project_id
   instance_name                  = "backstage"
-  labels                         = module.helpers.labels
+  labels                         = module.core_helpers.labels
   network                        = "standard-shared"
   point_in_time_recovery_enabled = false
   project                        = data.google_project.backstage.project_id
-  region                         = module.helpers.region
+  region                         = module.core_helpers.region
 }
 
 # Datadog Synthetics Test Resource
@@ -49,17 +49,17 @@ resource "datadog_synthetics_test" "this" {
 
   locations = each.value.locations
   message   = each.value.message
-  name      = "${each.value.name} ${each.value.region} ${module.helpers.environment}"
+  name      = "${each.value.name} ${each.value.region} ${module.core_helpers.environment}"
 
   options_list {
-    tick_every = 300
+    monitor_priority = each.value.message_priority
 
     retry {
       count    = 2
       interval = 120
     }
 
-    monitor_priority = each.value.message_priority
+    tick_every = 300
   }
 
   request_definition {
@@ -67,18 +67,16 @@ resource "datadog_synthetics_test" "this" {
     url    = each.value.url
   }
 
-  request_headers = each.value.region == "global" ? {} : {
-    Body = "services-${each.value.region}"
-  }
+  request_headers = each.value.request_headers
 
   status  = each.value.status
   subtype = "http"
 
   tags = [
-    "env:${module.helpers.environment}",
+    "env:${module.core_helpers.environment}",
     "service:${each.value.service}",
     "region:${each.value.region}",
-    "team:${module.helpers.team}"
+    "team:${module.core_helpers.team}"
   ]
 
   type = "api"
@@ -88,13 +86,14 @@ resource "datadog_synthetics_test" "this" {
 # https://search.opentofu.org/provider/hashicorp/google/latest/docs/resources/dns_record_set
 
 resource "google_dns_record_set" "backstage_a_record" {
-  project      = var.networking_project_id
-  name         = "${local.hostname}." # Trailing dot is required
   managed_zone = local.managed_zone
-  type         = "A"
-  ttl          = 300
+  name         = "${local.hostname}." # Trailing dot is required
+  project      = var.networking_project_id
 
   rrdatas = [kubernetes_ingress_v1.backstage.status.0.load_balancer.0.ingress.0.ip]
+
+  ttl  = 300
+  type = "A"
 }
 
 # Cloud SQL Database Resource
@@ -122,6 +121,12 @@ resource "google_sql_user" "this" {
 # https://search.opentofu.org/provider/hashicorp/helm/latest/docs/resources/release
 
 resource "helm_release" "backstage" {
+  depends_on = [
+    kubernetes_secret_v1.github_app_credentials,
+    kubernetes_secret_v1.postgres,
+    module.cloud_sql
+  ]
+
   chart      = "backstage"
   name       = "backstage"
   namespace  = "backstage"
@@ -133,27 +138,26 @@ resource "helm_release" "backstage" {
   ]
 
   version = "2.6.0"
-
-  depends_on = [
-    kubernetes_secret_v1.github_app_credentials,
-    kubernetes_secret_v1.postgres,
-    module.cloud_sql
-  ]
 }
 
 # Kubernetes Ingress Resource
 # https://search.opentofu.org/provider/hashicorp/kubernetes/latest/docs/resources/ingress_v1
 
 resource "kubernetes_ingress_v1" "backstage" {
-  metadata {
-    name      = "backstage"
-    namespace = "backstage"
+  depends_on = [
+    module.cloud_sql
+  ]
 
+  metadata {
     annotations = {
       "kubernetes.io/ingress.allow-http"       = "false"
       "networking.gke.io/managed-certificates" = kubernetes_manifest.backstage_tls.manifest.metadata.name
     }
+
+    name      = "backstage"
+    namespace = "backstage"
   }
+
   spec {
     rule {
       host = local.hostname
@@ -172,16 +176,12 @@ resource "kubernetes_ingress_v1" "backstage" {
       }
     }
   }
-  wait_for_load_balancer = true
 
-  depends_on = [
-    module.cloud_sql
-  ]
+  wait_for_load_balancer = true
 }
 
 # Kubernetes Manifest Resource
 # https://search.opentofu.org/provider/hashicorp/kubernetes/latest/docs/resources/manifest
-
 
 resource "kubernetes_manifest" "backstage_tls" {
   manifest = {
@@ -200,13 +200,13 @@ resource "kubernetes_manifest" "backstage_tls" {
 }
 
 # Kubernetes Secret Resource
-# https://search.opentofu.org/provider/hashicorp/kubernetes/latest/docs/resources/secret
+# https://search.opentofu.org/provider/hashicorp/kubernetes/latest/docs/resources/secret_v1
 
 resource "kubernetes_secret_v1" "github_app_credentials" {
   data = {
-    GITHUB_APP_ID             = var.github_app_id
     GITHUB_APP_CLIENT_ID      = var.github_app_client_id
     GITHUB_APP_CLIENT_SECRET  = var.github_app_client_secret
+    GITHUB_APP_ID             = var.github_app_id
     GITHUB_APP_PRIVATE_KEY    = base64decode(var.github_app_private_key)
     GITHUB_APP_WEBHOOK_SECRET = var.github_app_webhook_secret
     GITHUB_AUTH_CLIENT_ID     = var.github_auth_client_id

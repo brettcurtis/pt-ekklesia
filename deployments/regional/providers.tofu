@@ -109,8 +109,8 @@ data "google_client_config" "this" {
 # # https://search.opentofu.org/provider/hashicorp/google/latest/docs/data-sources/container_cluster
 
 data "google_container_cluster" "this" {
-  name     = "plt-${module.helpers.region}-${module.helpers.zone}"
-  location = module.helpers.region
+  location = module.core_helpers.region
+  name     = "plt-${module.core_helpers.region}-${module.core_helpers.zone}"
   project  = data.google_project.k8s.project_id
 }
 
@@ -118,11 +118,11 @@ data "google_container_cluster" "this" {
 # https://search.opentofu.org/provider/hashicorp/google/latest/docs/data-sources/projects
 
 data "google_projects" "backstage" {
-  filter = "name:plt-backstage-* labels.env:${module.helpers.environment}"
+  filter = "name:plt-backstage-* labels.env:${module.core_helpers.environment}"
 }
 
 data "google_projects" "k8s" {
-  filter = "name:plt-k8s-* labels.env:${module.helpers.environment}"
+  filter = "name:plt-k8s-* labels.env:${module.core_helpers.environment}"
 }
 
 # Google Project Data Source
