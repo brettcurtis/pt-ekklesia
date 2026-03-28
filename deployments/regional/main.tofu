@@ -29,95 +29,6 @@ module "cloud_sql" {
   region                         = module.helpers.region
 }
 
-# Datadog Synthetics Test Resource
-# https://search.opentofu.org/provider/opentofu/datadog/latest/resources/synthetics_test
-
-resource "datadog_synthetics_test" "this" {
-  for_each = local.datadog_synthetic_tests
-
-  assertion {
-    type     = "statusCode"
-    operator = "is"
-    target   = "200"
-  }
-
-  assertion {
-    type     = "responseTime"
-    operator = "lessThan"
-    target   = 1000
-  }
-
-  locations = each.value.locations
-  message   = each.value.message
-  name      = "${each.value.name} ${each.value.region} ${module.helpers.environment}"
-
-  options_list {
-    tick_every = 300
-
-    retry {
-      count    = 2
-      interval = 120
-    }
-
-    monitor_priority = each.value.message_priority
-  }
-
-  request_definition {
-    method = "GET"
-    url    = each.value.url
-  }
-
-  request_headers = each.value.region == "global" ? {} : {
-    Body = "services-${each.value.region}"
-  }
-
-  status  = each.value.status
-  subtype = "http"
-
-  tags = [
-    "env:${module.helpers.environment}",
-    "service:${each.value.service}",
-    "region:${each.value.region}",
-    "team:${module.helpers.team}"
-  ]
-
-  type = "api"
-}
-
-# DNS Record Set Resource
-# https://search.opentofu.org/provider/hashicorp/google/latest/docs/resources/dns_record_set
-
-resource "google_dns_record_set" "backstage_a_record" {
-  project      = var.networking_project_id
-  name         = "${local.hostname}." # Trailing dot is required
-  managed_zone = local.managed_zone
-  type         = "A"
-  ttl          = 300
-
-  rrdatas = [kubernetes_ingress_v1.backstage.status.0.load_balancer.0.ingress.0.ip]
-}
-
-# Cloud SQL Database Resource
-# https://search.opentofu.org/provider/hashicorp/google/latest/docs/resources/sql_database
-
-resource "google_sql_database" "this" {
-  deletion_policy = "ABANDON"
-  instance        = module.cloud_sql.instance
-  name            = "backstage"
-  project         = data.google_project.backstage.project_id
-}
-
-# Cloud SQL Database Users
-# https://search.opentofu.org/provider/hashicorp/google/latest/docs/resources/sql_user
-
-resource "google_sql_user" "this" {
-  deletion_policy = "ABANDON"
-  instance        = module.cloud_sql.instance
-  name            = "backstage"
-  password        = random_password.this.result
-  project         = data.google_project.backstage.project_id
-}
-
 # Helm Release
 # https://search.opentofu.org/provider/hashicorp/helm/latest/docs/resources/release
 
@@ -179,9 +90,21 @@ resource "kubernetes_ingress_v1" "backstage" {
   ]
 }
 
+# DNS Record Set Resource
+# https://search.opentofu.org/provider/hashicorp/google/latest/docs/resources/dns_record_set
+
+resource "google_dns_record_set" "backstage_a_record" {
+  project      = var.networking_project_id
+  name         = "${local.hostname}." # Trailing dot is required
+  managed_zone = local.managed_zone
+  type         = "A"
+  ttl          = 300
+
+  rrdatas = [kubernetes_ingress_v1.backstage.status.0.load_balancer.0.ingress.0.ip]
+}
+
 # Kubernetes Manifest Resource
 # https://search.opentofu.org/provider/hashicorp/kubernetes/latest/docs/resources/manifest
-
 
 resource "kubernetes_manifest" "backstage_tls" {
   manifest = {
@@ -232,6 +155,82 @@ resource "kubernetes_secret_v1" "postgres" {
     name      = "postgres-secrets"
     namespace = "backstage"
   }
+}
+
+# Datadog Synthetics Test Resource
+# https://search.opentofu.org/provider/opentofu/datadog/latest/resources/synthetics_test
+
+resource "datadog_synthetics_test" "this" {
+  for_each = local.datadog_synthetic_tests
+
+  assertion {
+    type     = "statusCode"
+    operator = "is"
+    target   = "200"
+  }
+
+  assertion {
+    type     = "responseTime"
+    operator = "lessThan"
+    target   = 1000
+  }
+
+  locations = each.value.locations
+  message   = each.value.message
+  name      = "${each.value.name} ${each.value.region} ${module.helpers.environment}"
+
+  options_list {
+    tick_every = 300
+
+    retry {
+      count    = 2
+      interval = 120
+    }
+
+    monitor_priority = each.value.message_priority
+  }
+
+  request_definition {
+    method = "GET"
+    url    = each.value.url
+  }
+
+  request_headers = each.value.region == "global" ? {} : {
+    Body = "services-${each.value.region}"
+  }
+
+  status  = each.value.status
+  subtype = "http"
+
+  tags = [
+    "env:${module.helpers.environment}",
+    "service:${each.value.service}",
+    "region:${each.value.region}",
+    "team:${module.helpers.team}"
+  ]
+
+  type = "api"
+}
+
+# Cloud SQL Database Resource
+# https://search.opentofu.org/provider/hashicorp/google/latest/docs/resources/sql_database
+
+resource "google_sql_database" "this" {
+  deletion_policy = "ABANDON"
+  instance        = module.cloud_sql.instance
+  name            = "backstage"
+  project         = data.google_project.backstage.project_id
+}
+
+# Cloud SQL Database Users
+# https://search.opentofu.org/provider/hashicorp/google/latest/docs/resources/sql_user
+
+resource "google_sql_user" "this" {
+  deletion_policy = "ABANDON"
+  instance        = module.cloud_sql.instance
+  name            = "backstage"
+  password        = random_password.this.result
+  project         = data.google_project.backstage.project_id
 }
 
 # Random Password Resource
