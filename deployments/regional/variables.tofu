@@ -66,16 +66,16 @@ variable "github_app_client_id" {
   default     = "Iv23liBR7fZfikt1WnLb"
 }
 
-variable "github_app_id" {
-  description = "GitHub App ID"
-  type        = number
-  default     = 1102240
-}
-
 variable "github_app_client_secret" {
   description = "GitHub App Client Secret"
   type        = string
   sensitive   = true
+}
+
+variable "github_app_id" {
+  description = "GitHub App ID"
+  type        = number
+  default     = 1102240
 }
 
 variable "github_app_private_key" {

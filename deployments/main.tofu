@@ -1,28 +1,28 @@
 # Datadog Google Cloud Platform Integration Module (osinfra.io)
 # https://github.com/osinfra-io/pt-arche-datadog-google-integration
 
-module "datadog" {
+module "datadog_google_integration" {
   source = "github.com/osinfra-io/pt-arche-datadog-google-integration?ref=a0f6388bd28937e49871f3e717740cf6775507ca" # v0.4.1
   count  = local.datadog_count
 
   api_key                            = var.datadog_api_key
   is_cspm_enabled                    = true
   is_security_command_center_enabled = true
-  labels                             = module.helpers.labels
-  project                            = module.project.id
+  labels                             = module.core_helpers.labels
+  project                            = module.google_project.id
 }
 
 # Google Project Module (osinfra.io)
 # https://github.com/osinfra-io/pt-arche-google-project
 
-module "project" {
+module "google_project" {
   source = "github.com/osinfra-io/pt-arche-google-project?ref=39a041123cc3154c651e47c6aa69c2ead4c4577b" # v0.6.7
 
   billing_account                 = var.project_billing_account
   cis_2_2_logging_sink_project_id = var.project_cis_2_2_logging_sink_project_id
   description                     = "backstage"
   folder_id                       = var.project_folder_id
-  labels                          = module.helpers.labels
+  labels                          = module.core_helpers.labels
   monthly_budget_amount           = var.project_monthly_budget_amount
   prefix                          = "plt"
 
@@ -44,6 +44,6 @@ module "project" {
 
 resource "google_project_iam_member" "cloud_sql_proxy" {
   member  = "serviceAccount:${var.k8s_workload_identity_service_account}"
-  project = module.project.id
+  project = module.google_project.id
   role    = "roles/cloudsql.client"
 }
